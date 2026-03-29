@@ -28,6 +28,27 @@ function getHydatosWeather(chance) {
   return "晴朗";
 }
 
+function getET(unixSeconds) {
+  const totalEorzeaSeconds = Math.floor(unixSeconds * (1440 / 70));
+
+  const minutes = Math.floor(totalEorzeaSeconds / 60) % 60;
+  const hours = Math.floor(totalEorzeaSeconds / 3600) % 24;
+
+  return `${hours.toString().padStart(2, "0")}:${minutes
+    .toString()
+    .padStart(2, "0")}`;
+}
+
+function getTST(unixSeconds) {
+  const date = new Date(unixSeconds * 1000);
+
+  return date.toLocaleString("zh-TW", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 function generateForecast() {
   const list = document.getElementById("weatherList");
   list.innerHTML = "";
@@ -35,16 +56,26 @@ function generateForecast() {
   let now = Date.now() / 1000;
 
   for (let i = 0; i < 20; i++) {
-    let future = now + (i * 8 * 175); // 每8小時一段
+    let future = now + i * 8 * 175;
 
     const chance = calculateWeatherChance(future);
     const weather = getHydatosWeather(chance);
 
+    const tst = getTST(future);
+    const et = getET(future);
+
     const li = document.createElement("li");
-    li.textContent = `${i}段後：${weather}`;
+    li.textContent = `TST ${tst} | ET ${et} | ${weather}`;
+
+    if (i === 0) {
+      li.style.fontWeight = "bold";
+    }
 
     list.appendChild(li);
   }
 }
+
+generateForecast();
+
 
 generateForecast();
