@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hydatos 天氣評分 — ET 視窗起點的重疊 3 小時區段（GMT+8）</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f1419;
+        --panel: #1a2332;
+        --text: #e8eef7;
+        --muted: #8b9cb3;
+        --accent: #5eb3d4;
+        --border: #2d3a4d;
+        --score: #e6c86e;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", "Microsoft JhengHei", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+      }
+      header {
+        padding: 1.5rem 1.25rem 1rem;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, #15202b 0%, var(--bg) 100%);
+      }
+      h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1.35rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .sub {
+        margin: 0;
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+      .sub a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .sub a:hover {
+        text-decoration: underline;
+      }
+      main {
+        max-width: 58rem;
+        margin: 0 auto;
+        padding: 1.25rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        background: var(--panel);
+        font-size: 0.925rem;
+      }
+      th,
+      td {
+        padding: 0.55rem 1rem;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: none;
+      }
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+      .seg {
+        font-variant-numeric: tabular-nums;
+        color: var(--accent);
+        white-space: nowrap;
+      }
+      .sum {
+        font-variant-numeric: tabular-nums;
+        color: var(--score);
+        font-weight: 600;
+      }
+      .meta {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      @media (max-width: 520px) {
+        th,
+        td {
+          display: block;
+          width: 100%;
+        }
+        th {
+          padding-bottom: 0.15rem;
+        }
+        td {
+          padding-top: 0;
+          padding-bottom: 0.65rem;
+        }
+        tr {
+          display: block;
+          border-bottom: 1px solid var(--border);
+          padding: 0.5rem 0;
+        }
+        tbody tr:last-child {
+          border-bottom: none;
+        }
+      }
+
+      html,
+      body {
+        color-scheme: dark;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>豐水之地（Hydatos）— ET 視窗起點的重疊 3 小時區段天氣分數</h1>
+      <p class="sub">
+        區域與天氣演算法依
+        <a
+          href="https://github.com/eorzea-weather/node-eorzea-weather"
+          target="_blank"
+          rel="noopener noreferrer"
+          >node-eorzea-weather</a
+        >
+        （<code>eorzea-weather</code> v3.2.0）。以<strong>現實時間</strong>
+        <strong>GMT+8</strong>（<code>Asia/Taipei</code>）中每個天氣視窗起點建立一個長度
+        <strong>3 小時</strong>的區段；天氣視窗起點依序對應 <strong>ET 00:00</strong>、
+        <strong>ET 08:00</strong>、<strong>ET 16:00</strong>，因此區段彼此<strong>可重疊</strong>。每個
+        3 小時區段會加總自該區段起點起、落在區段內的所有天氣視窗分數。<strong>僅「雪」計分</strong>：視窗起點之
+        <strong>ET 0000</strong> 或 <strong>ET 1600</strong> 者 <strong>100</strong> 分；<strong>ET 0800</strong>
+        者 <strong>10</strong> 分；其餘時間之雪 <strong>0</strong> 分。
+        <br />
+        參數：<code>?days=7</code> 向前推算涵蓋的天數（預設 7，上限 60）；
+        <code>?low=100</code> 設定最低顯示分數門檻（預設 100，設 <code>0</code> 可顯示全部）。
+        <br />
+        <a href="index.html">← 天氣列表</a>
+      </p>
+    </header>
+    <main>
+      <table aria-label="區段分數">
+        <thead>
+          <tr>
+            <th scope="col">現實時間區段（GMT+8）</th>
+            <th scope="col">加總分數</th>
+            <th scope="col">雪（100／10／0 次數）</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </main>
+    <script type="module">
+      import EorzeaWeather from "https://esm.sh/eorzea-weather@3.2.0";
+
+      const ZONE = EorzeaWeather.ZONE_EUREKA_HYDATOS;
+      const PERIOD_SEC = 8 * 175;
+      const EORZEA_DAY_SEC = 4200;
+      const SEGMENT_SEC = 3 * 3600;
+      /** @param {number} unixSec */
+      function weatherAtUnix(unixSec) {
+        return EorzeaWeather.getWeather(ZONE, new Date(unixSec * 1000), {
+          locale: "en",
+        });
+      }
+
+      function findPeriodStartUnix() {
+        let u = Math.floor(Date.now() / 1000);
+        const w = weatherAtUnix(u);
+        while (u > 0 && weatherAtUnix(u - 1) === w) u -= 1;
+        return u;
+      }
+
+      /** @param {number} unixSec */
+      function getEorzeaHour(unixSec) {
+        const totalEtSec = (unixSec * 86400) / EORZEA_DAY_SEC;
+        let sod = Math.floor(totalEtSec) % 86400;
+        if (sod < 0) sod += 86400;
+        return Math.floor(sod / 3600);
+      }
+
+      /**
+       * 僅雪：ET0、ET16 → 100；ET8 → 10；其餘雪 → 0
+       * @param {number} unixSec 天氣視窗起點（unix 秒）
+       */
+      function snowScoreAtPeriodStart(unixSec) {
+        if (weatherAtUnix(unixSec) !== "Snow") return 0;
+        const eh = getEorzeaHour(unixSec);
+        if (eh === 0 || eh === 16) return 100;
+        if (eh === 8) return 10;
+        return 0;
+      }
+
+      function bumpCounts(counts, score) {
+        if (score === 100) counts.c100 += 1;
+        else if (score === 10) counts.c10 += 1;
+        else counts.c0 += 1;
+      }
+
+      /** 200 分以上開始提亮，分數越高越亮 */
+      function scoreStyle(sum) {
+        if (sum < 200) return "";
+        const boost = sum - 200;
+        const lightness = Math.min(92, 66 + boost * 0.12);
+        const saturation = Math.min(100, 96 + boost * 0.01);
+        const glow = Math.min(0.9, 0.22 + boost * 0.0022);
+        return `color: hsl(48 ${saturation}% ${lightness}%); text-shadow: 0 0 0.55rem rgb(255 220 120 / ${glow}), 0 0 1rem rgb(255 245 200 / ${Math.min(0.45, glow * 0.65)}); font-weight: 700;`;
+      }
+
+      const gmt8Segment = new Intl.DateTimeFormat("zh-TW", {
+        timeZone: "Asia/Taipei",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+
+      /** @param {number} startUnix */
+      function segmentLabel(startUnix) {
+        const endUnix = startUnix + SEGMENT_SEC;
+        return `${gmt8Segment.format(new Date(startUnix * 1000))}–${gmt8Segment.format(new Date(endUnix * 1000))} GMT+8（起點 ET ${String(getEorzeaHour(startUnix)).padStart(2, "0")}:00）`;
+      }
+
+      const DEFAULT_DAYS = 7;
+      const MAX_DAYS = 60;
+
+      function getDaysFromQuery() {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get("days");
+        const parsed = Number.parseInt(raw ?? "", 10);
+        if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_DAYS;
+        return Math.min(parsed, MAX_DAYS);
+      }
+
+      function getLowThreshold() {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get("low");
+        const parsed = Number.parseInt(raw ?? "", 10);
+        if (!Number.isFinite(parsed)) return 100;
+        return Math.max(0, parsed);
+      }
+
+      const days = getDaysFromQuery();
+      const lowThreshold = getLowThreshold();
+      const start = findPeriodStartUnix();
+      const endLimit = start + days * 86400;
+
+      /** @type {Map<number, { sum: number, counts: { c100: number, c10: number, c0: number } }>} */
+      const agg = new Map();
+
+      for (let segStart = start; segStart < endLimit; segStart += PERIOD_SEC) {
+        const row = { sum: 0, counts: { c100: 0, c10: 0, c0: 0 } };
+        const segEnd = segStart + SEGMENT_SEC;
+        for (let t = segStart; t < segEnd; t += PERIOD_SEC) {
+          const score = snowScoreAtPeriodStart(t);
+          row.sum += score;
+          if (weatherAtUnix(t) === "Snow") bumpCounts(row.counts, score);
+        }
+        agg.set(segStart, row);
+      }
+
+      const keys = [...agg.keys()]
+        .filter((key) => agg.get(key).sum >= lowThreshold)
+        .sort((a, b) => a - b);
+      const tbody = document.getElementById("tbody");
+
+      for (const key of keys) {
+        const { sum, counts } = agg.get(key);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="seg">${segmentLabel(key)}</td><td class="sum" style="${scoreStyle(sum)}">${sum}</td><td class="meta">${counts.c100}／${counts.c10}／${counts.c0}</td>`;
+        tbody.appendChild(tr);
+      }
+
+      if (keys.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="3" class="meta">此範圍內沒有可歸類的天氣視窗資料。</td>`;
+        tbody.appendChild(tr);
+      }
+    </script>
+  </body>
+</html>
