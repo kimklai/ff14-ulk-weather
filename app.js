@@ -1,3 +1,17 @@
+function getAlignedStartTime(unixSeconds) {
+  const bell = unixSeconds / 175; // ET 小時
+
+  const currentHour = Math.floor(bell % 24);
+
+  // 對齊到 0 / 8 / 16
+  const baseHour = currentHour - (currentHour % 8);
+
+  // 回推到該區段開始
+  const alignedBell = Math.floor(bell) - (currentHour % 8);
+
+  return alignedBell * 175;
+}
+
 function getEorzeaTime(unixSeconds) {
   const eorzeaHours = Math.floor(unixSeconds / 175);
   const eorzeaDays = Math.floor(eorzeaHours / 24);
@@ -57,8 +71,11 @@ function generateForecast() {
 
   let now = Date.now() / 1000;
 
+  // ⭐ 對齊到天氣起點
+  let start = getAlignedStartTime(now);
+
   for (let i = 0; i < 200; i++) {
-    let future = now + i * 8 * 175;
+    let future = start + i * 8 * 175;
 
     const chance = calculateWeatherChance(future);
     const weather = getHydatosWeather(chance);
@@ -67,9 +84,10 @@ function generateForecast() {
     const et = getET(future);
 
     const li = document.createElement("li");
-    li.textContent = `TST ${tst} | ET ${et} | ${weather}`;
+    li.textContent = `${tst} | ET ${et} | ${weather}`;
 
-    if (i === 0) {
+    // 現在所在區段
+    if (now >= future && now < future + 8 * 175) {
       li.style.fontWeight = "bold";
     }
 
