@@ -1,13 +1,218 @@
 <!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>FF14 水島天氣</title>
-</head>
-<body>
-  <h1>水島天氣預測</h1>
-  <ul id="weatherList"></ul>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>優雷卡丰水之地（Hydatos）天氣 — eorzea-weather</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f1419;
+        --panel: #1a2332;
+        --text: #e8eef7;
+        --muted: #8b9cb3;
+        --accent: #5eb3d4;
+        --border: #2d3a4d;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", "Microsoft JhengHei", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+      }
+      header {
+        padding: 1.5rem 1.25rem 1rem;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, #15202b 0%, var(--bg) 100%);
+      }
+      h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1.35rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .sub {
+        margin: 0;
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+      .sub a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .sub a:hover {
+        text-decoration: underline;
+      }
+      main {
+        max-width: 58rem;
+        margin: 0 auto;
+        padding: 1.25rem;
+      }
+      ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        background: var(--panel);
+      }
+      li {
+        display: grid;
+        grid-template-columns: minmax(12rem, 14rem) minmax(9.5rem, 11rem) 1fr;
+        gap: 0.75rem;
+        align-items: baseline;
+        padding: 0.55rem 1rem;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.925rem;
+      }
+      li:last-child {
+        border-bottom: none;
+      }
+      .time {
+        font-variant-numeric: tabular-nums;
+        color: var(--accent);
+        white-space: nowrap;
+      }
+      .et {
+        font-variant-numeric: tabular-nums;
+        color: #9dd49a;
+        white-space: nowrap;
+      }
+      .wx {
+        color: var(--text);
+      }
+      @media (max-width: 520px) {
+        li {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto auto auto;
+        }
+        .time {
+          grid-row: 1;
+        }
+        .et {
+          grid-row: 2;
+        }
+        .wx {
+          grid-row: 3;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>優雷卡丰水之地（Hydatos）天氣預報</h1>
+      <p class="sub">
+        演算法與區域定義依
+        <a
+          href="https://github.com/eorzea-weather/node-eorzea-weather"
+          target="_blank"
+          rel="noopener noreferrer"
+          >node-eorzea-weather</a
+        >
+        （<code>eorzea-weather</code> v3.2.0）。時間為視窗起點（每段 8 艾歐澤亞小時 =
+        1400 秒）。左欄為本地時間
+        <strong>GMT+8</strong>（<code>Asia/Taipei</code>），中欄為對應的艾歐澤亞時間（<strong>ET</strong>，1
+        艾日 = 70 實分）。
+        <br />
+        可用 URL 參數 <code>?count=50</code>（或 <code>?n=50</code>）指定筆數，未指定則預設 20 筆。
+      </p>
+    </header>
+    <main>
+      <ul id="list" aria-label="天氣列表"></ul>
+    </main>
+    <script type="module">
+      import EorzeaWeather from "https://esm.sh/eorzea-weather@3.2.0";
 
-  <script src="app.js"></script>
-</body>
+      const ZONE = EorzeaWeather.ZONE_EUREKA_HYDATOS;
+      /** 每段天氣：8 艾歐澤亞小時 = 8 × 175 實秒（與 SaintCoinach / 本套件一致） */
+      const PERIOD_SEC = 8 * 175;
+      /** 艾日長度（實秒），與遊戲／天氣刻度一致：86400 艾秒 / 艾日 */
+      const EORZEA_DAY_SEC = 4200;
+
+      /** 套件 en 字串 → 繁中（僅 Hydatos 可能類型） */
+      const ZH_LABEL = {
+        "Fair Skies": "晴朗",
+        Showers: "暴雨",
+        Gloom: "妖霧",
+        Thunderstorms: "雷雨",
+        Snow: "雪",
+      };
+
+      /** @param {number} unixSec */
+      function weatherAtUnix(unixSec) {
+        return EorzeaWeather.getWeather(ZONE, new Date(unixSec * 1000), {
+          locale: "en",
+        });
+      }
+
+      /** 目前視窗的第一秒（UTC unix） */
+      function findPeriodStartUnix() {
+        let u = Math.floor(Date.now() / 1000);
+        const w = weatherAtUnix(u);
+        while (u > 0 && weatherAtUnix(u - 1) === w) u -= 1;
+        return u;
+      }
+
+      const gmt8 = new Intl.DateTimeFormat("zh-TW", {
+        timeZone: "Asia/Taipei",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+
+      /** @param {number} unixSec */
+      function formatEorzeaTime(unixSec) {
+        const totalEtSec = (unixSec * 86400) / EORZEA_DAY_SEC;
+        let sod = Math.floor(totalEtSec) % 86400;
+        if (sod < 0) sod += 86400;
+        const h = Math.floor(sod / 3600);
+        const m = Math.floor((sod % 3600) / 60);
+        const s = sod % 60;
+        const p = (n) => String(n).padStart(2, "0");
+        return `ET ${p(h)}:${p(m)}:${p(s)}`;
+      }
+
+      function formatLine(unixSec) {
+        const d = new Date(unixSec * 1000);
+        const en = weatherAtUnix(unixSec);
+        const zh = ZH_LABEL[en] ?? en;
+        return {
+          timeStr: `${gmt8.format(d)}`,
+          etStr: formatEorzeaTime(unixSec),
+          label: `${zh}（${en}）`,
+        };
+      }
+
+      const list = document.getElementById("list");
+      const start = findPeriodStartUnix();
+      const DEFAULT_COUNT = 20;
+      const MAX_COUNT = 5700; // 避免極大數值造成卡頓
+      function getCountFromQuery() {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get("count") ?? params.get("n");
+        const parsed = Number.parseInt(raw ?? "", 10);
+        if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_COUNT;
+        return Math.min(parsed, MAX_COUNT);
+      }
+      const COUNT = getCountFromQuery();
+
+      for (let i = 0; i < COUNT; i++) {
+        const unix = start + i * PERIOD_SEC;
+        const { timeStr, etStr, label } = formatLine(unix);
+        const li = document.createElement("li");
+        li.innerHTML = `<span class="time">${timeStr}</span><span class="et">${etStr}</span><span class="wx">${label}</span>`;
+        list.appendChild(li);
+      }
+    </script>
+  </body>
 </html>
