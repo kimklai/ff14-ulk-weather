@@ -43,6 +43,8 @@ function getTST(unixSeconds) {
   const date = new Date(unixSeconds * 1000);
 
   return date.toLocaleString("zh-TW", {
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -74,8 +76,5 @@ function generateForecast() {
     list.appendChild(li);
   }
 }
-
-generateForecast();
-
 
 generateForecast();
