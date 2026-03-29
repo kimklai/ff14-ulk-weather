@@ -141,7 +141,7 @@
         <strong>ET 0000</strong> 或 <strong>ET 1600</strong> 者 <strong>100</strong> 分；<strong>ET 0800</strong>
         者 <strong>10</strong> 分；其餘時間之雪 <strong>0</strong> 分。
         <br />
-        參數：<code>?days=7</code> 向前推算涵蓋的天數（預設 7，上限 60）；
+        參數：<code>?days=7</code> 向前推算涵蓋的天數（預設 7，上限 180）；
         <code>?low=100</code> 設定最低顯示分數門檻（預設 100，設 <code>0</code> 可顯示全部）。
         <br />
         <a href="index.html">← 天氣列表</a>
@@ -233,7 +233,7 @@
       }
 
       const DEFAULT_DAYS = 7;
-      const MAX_DAYS = 60;
+      const MAX_DAYS = 180;
 
       function getDaysFromQuery() {
         const params = new URLSearchParams(window.location.search);
