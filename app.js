@@ -57,7 +57,7 @@ function generateForecast() {
 
   let now = Date.now() / 1000;
 
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 200; i++) {
     let future = now + i * 8 * 175;
 
     const chance = calculateWeatherChance(future);
