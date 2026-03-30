@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hydatos 天氣評分 — ET 視窗起點的重疊 3 小時區段（GMT+8）</title>
+    <title>Hydatos 天氣評分 — ET 視窗起點的重疊 3 ET 天區段（GMT+8）</title>
     <style>
       :root {
         color-scheme: dark;
@@ -93,6 +93,19 @@
         font-size: 0.8rem;
         color: var(--muted);
       }
+      .jump a {
+        display: inline-block;
+        padding: 0.18rem 0.5rem;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        color: var(--accent);
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .jump a:hover {
+        border-color: var(--accent);
+        background: rgb(94 179 212 / 0.08);
+      }
       @media (max-width: 520px) {
         th,
         td {
@@ -124,7 +137,7 @@
   </head>
   <body>
     <header>
-      <h1>豐水之地（Hydatos）— ET 視窗起點的重疊 3 小時區段天氣分數</h1>
+      <h1>豐水之地（Hydatos）— ET 視窗起點的重疊 3 ET 天區段天氣分數</h1>
       <p class="sub">
         區域與天氣演算法依
         <a
@@ -135,9 +148,9 @@
         >
         （<code>eorzea-weather</code> v3.2.0）。以<strong>現實時間</strong>
         <strong>GMT+8</strong>（<code>Asia/Taipei</code>）中每個天氣視窗起點建立一個長度
-        <strong>3 小時</strong>的區段；天氣視窗起點依序對應 <strong>ET 00:00</strong>、
-        <strong>ET 08:00</strong>、<strong>ET 16:00</strong>，因此區段彼此<strong>可重疊</strong>。每個
-        3 小時區段會加總自該區段起點起、落在區段內的所有天氣視窗分數。<strong>僅「雪」計分</strong>：視窗起點之
+        <strong>ET 3 天</strong>的區段，也就是每段涵蓋<strong>9 個 ET 天氣區段</strong>；天氣視窗起點依序對應
+        <strong>ET 00:00</strong>、<strong>ET 08:00</strong>、<strong>ET 16:00</strong>，因此區段彼此<strong>可重疊</strong>。每個
+        ET 3 天區段會加總自該區段起點起、落在區段內的所有天氣視窗分數。<strong>僅「雪」計分</strong>：視窗起點之
         <strong>ET 0000</strong> 或 <strong>ET 1600</strong> 者 <strong>100</strong> 分；<strong>ET 0800</strong>
         者 <strong>10</strong> 分；其餘時間之雪 <strong>0</strong> 分。
         <br />
@@ -153,7 +166,8 @@
           <tr>
             <th scope="col">現實時間區段（GMT+8）</th>
             <th scope="col">加總分數</th>
-            <th scope="col">雪（100／10／0 次數）</th>
+            <th scope="col">雪（100分/10分 次數）</th>
+            <th scope="col">詳情</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -165,7 +179,8 @@
       const ZONE = EorzeaWeather.ZONE_EUREKA_HYDATOS;
       const PERIOD_SEC = 8 * 175;
       const EORZEA_DAY_SEC = 4200;
-      const SEGMENT_SEC = 3 * 3600;
+      const SEGMENT_PERIODS = 9;
+      const SEGMENT_SEC = SEGMENT_PERIODS * PERIOD_SEC;
       /** @param {number} unixSec */
       function weatherAtUnix(unixSec) {
         return EorzeaWeather.getWeather(ZONE, new Date(unixSec * 1000), {
@@ -203,7 +218,6 @@
       function bumpCounts(counts, score) {
         if (score === 100) counts.c100 += 1;
         else if (score === 10) counts.c10 += 1;
-        else counts.c0 += 1;
       }
 
       /** 200 分以上開始提亮，分數越高越亮 */
@@ -216,7 +230,7 @@
         return `color: hsl(48 ${saturation}% ${lightness}%); text-shadow: 0 0 0.55rem rgb(255 220 120 / ${glow}), 0 0 1rem rgb(255 245 200 / ${Math.min(0.45, glow * 0.65)}); font-weight: 700;`;
       }
 
-      const gmt8Segment = new Intl.DateTimeFormat("zh-TW", {
+      const gmt8Segment = new Intl.DateTimeFormat("en-CA", {
         timeZone: "Asia/Taipei",
         year: "numeric",
         month: "2-digit",
@@ -226,10 +240,50 @@
         hour12: false,
       });
 
+      function getTaipeiDateTimeParts(unixSec) {
+        const parts = gmt8Segment.formatToParts(new Date(unixSec * 1000));
+        let year = "";
+        let month = "";
+        let day = "";
+        let hour = "";
+        let minute = "";
+        for (const p of parts) {
+          if (p.type === "year") year = p.value;
+          if (p.type === "month") month = p.value;
+          if (p.type === "day") day = p.value;
+          if (p.type === "hour") hour = p.value;
+          if (p.type === "minute") minute = p.value;
+        }
+        return { year, month, day, hour, minute };
+      }
+
+      function formatTaipeiMinute(unixSec) {
+        const { year, month, day, hour, minute } = getTaipeiDateTimeParts(unixSec);
+        return `${year}/${month}/${day} ${hour}:${minute}`;
+      }
+
       /** @param {number} startUnix */
       function segmentLabel(startUnix) {
         const endUnix = startUnix + SEGMENT_SEC;
-        return `${gmt8Segment.format(new Date(startUnix * 1000))}–${gmt8Segment.format(new Date(endUnix * 1000))} GMT+8（起點 ET ${String(getEorzeaHour(startUnix)).padStart(2, "0")}:00）`;
+        const startText = formatTaipeiMinute(startUnix);
+        const startParts = getTaipeiDateTimeParts(startUnix);
+        const endParts = getTaipeiDateTimeParts(endUnix);
+        const sameDate =
+          startParts.year === endParts.year &&
+          startParts.month === endParts.month &&
+          startParts.day === endParts.day;
+        const endText = sameDate
+          ? `${endParts.hour}:${endParts.minute}`
+          : `${endParts.year}/${endParts.month}/${endParts.day} ${endParts.hour}:${endParts.minute}`;
+        return `${startText} -> ${endText}（起點 ET ${String(getEorzeaHour(startUnix)).padStart(2, "0")}:00）`;
+      }
+
+      function weatherListHref(startUnix) {
+        const params = new URLSearchParams({
+          start: String(startUnix),
+          count: "10",
+        });
+        return `index.html?${params.toString()}`;
       }
 
       const DEFAULT_DAYS = 30;
@@ -256,11 +310,11 @@
       const start = findPeriodStartUnix();
       const endLimit = start + days * 86400;
 
-      /** @type {Map<number, { sum: number, counts: { c100: number, c10: number, c0: number } }>} */
+      /** @type {Map<number, { sum: number, counts: { c100: number, c10: number } }>} */
       const agg = new Map();
 
       for (let segStart = start; segStart < endLimit; segStart += PERIOD_SEC) {
-        const row = { sum: 0, counts: { c100: 0, c10: 0, c0: 0 } };
+        const row = { sum: 0, counts: { c100: 0, c10: 0 } };
         const segEnd = segStart + SEGMENT_SEC;
         for (let t = segStart; t < segEnd; t += PERIOD_SEC) {
           const score = snowScoreAtPeriodStart(t);
@@ -278,13 +332,13 @@
       for (const key of keys) {
         const { sum, counts } = agg.get(key);
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td class="seg">${segmentLabel(key)}</td><td class="sum" style="${scoreStyle(sum)}">${sum}</td><td class="meta">${counts.c100}／${counts.c10}／${counts.c0}</td>`;
+        tr.innerHTML = `<td class="seg">${segmentLabel(key)}</td><td class="sum" style="${scoreStyle(sum)}">${sum}</td><td class="meta">${counts.c100}／${counts.c10}</td><td class="jump"><a href="${weatherListHref(key)}">詳情</a></td>`;
         tbody.appendChild(tr);
       }
 
       if (keys.length === 0) {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td colspan="3" class="meta">此範圍內沒有可歸類的天氣視窗資料。</td>`;
+        tr.innerHTML = `<td colspan="4" class="meta">此範圍內沒有可歸類的天氣視窗資料。</td>`;
         tbody.appendChild(tr);
       }
     </script>

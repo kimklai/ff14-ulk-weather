@@ -120,7 +120,8 @@
         <strong>GMT+8</strong>（<code>Asia/Taipei</code>），中欄為對應的艾歐澤亞時間（<strong>ET</strong>，1
         艾日 = 70 實分）。
         <br />
-        可用 URL 參數 <code>?count=50</code>（或 <code>?n=50</code>）指定筆數，未指定則預設 20 筆。
+        可用 URL 參數 <code>?count=50</code>（或 <code>?n=50</code>）指定筆數，未指定則預設 20 筆；
+        <code>?start=unix秒</code> 可指定列表起點。
         <br />
         <a href="score.html">3 小時區段評分 →</a>
         （預設僅顯示 100 分以上，可用 <code>?days=180&amp;low=0</code> 查看更長區間與全部區段）
@@ -196,8 +197,16 @@
         };
       }
 
+      function getStartFromQuery() {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get("start");
+        const parsed = Number.parseInt(raw ?? "", 10);
+        if (!Number.isFinite(parsed) || parsed < 0) return findPeriodStartUnix();
+        return parsed;
+      }
+
       const list = document.getElementById("list");
-      const start = findPeriodStartUnix();
+      const start = getStartFromQuery();
       const DEFAULT_COUNT = 20;
       const MAX_COUNT = 5700; // 避免極大數值造成卡頓
       function getCountFromQuery() {
