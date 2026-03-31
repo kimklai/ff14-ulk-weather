@@ -70,6 +70,14 @@
         text-align: left;
         vertical-align: top;
       }
+      th:nth-child(2),
+      th:nth-child(3),
+      th:nth-child(4),
+      td:nth-child(2),
+      td:nth-child(3),
+      td:nth-child(4) {
+        text-align: center;
+      }
       th {
         color: var(--muted);
         font-weight: 600;
@@ -149,13 +157,15 @@
         （<code>eorzea-weather</code> v3.2.0）。以<strong>現實時間</strong>
         <strong>GMT+8</strong>（<code>Asia/Taipei</code>）中每個天氣視窗起點建立一個長度
         <strong>ET 3 天</strong>的區段，也就是每段涵蓋<strong>9 個 ET 天氣區段</strong>；天氣視窗起點依序對應
-        <strong>ET 00:00</strong>、<strong>ET 08:00</strong>、<strong>ET 16:00</strong>，因此區段彼此<strong>可重疊</strong>。每個
+        <strong>ET 00:00</strong>、<strong>ET 08:00</strong>、<strong>ET 16:00</strong>，因此區段彼此<strong>可重疊</strong>。預設僅顯示
+        <strong>ET 1600</strong> 起點的區段；加上 <code>?all</code> 才會顯示其他起點。每個
         ET 3 天區段會加總自該區段起點起、落在區段內的所有天氣視窗分數。<strong>僅「雪」計分</strong>：視窗起點之
         <strong>ET 0000</strong> 或 <strong>ET 1600</strong> 者 <strong>100</strong> 分；<strong>ET 0800</strong>
         者 <strong>10</strong> 分；其餘時間之雪 <strong>0</strong> 分。
         <br />
         參數：<code>?days=30</code> 向前推算涵蓋的天數（預設 30，上限 180）；
-        <code>?low=100</code> 設定最低顯示分數門檻（預設 100，設 <code>0</code> 可顯示全部）。
+        <code>?low=100</code> 設定最低顯示分數門檻（預設 100，設 <code>0</code> 可顯示全部）；
+        <code>?all</code> 顯示所有 ET 起點。
         <br />
         <a href="index.html">← 天氣列表</a>
       </p>
@@ -275,7 +285,8 @@
         const endText = sameDate
           ? `${endParts.hour}:${endParts.minute}`
           : `${endParts.year}/${endParts.month}/${endParts.day} ${endParts.hour}:${endParts.minute}`;
-        return `${startText} -> ${endText}（起點 ET ${String(getEorzeaHour(startUnix)).padStart(2, "0")}:00）`;
+        const startLabel = `（起點 ET ${String(getEorzeaHour(startUnix)).padStart(2, "0")}:00）`;
+        return showAllStarts ? `${startText} -> ${endText}${startLabel}` : `${startText} -> ${endText}`;
       }
 
       function weatherListHref(startUnix) {
@@ -284,6 +295,11 @@
           count: "10",
         });
         return `index.html?${params.toString()}`;
+      }
+
+      function shouldShowAllStarts() {
+        const params = new URLSearchParams(window.location.search);
+        return params.has("all");
       }
 
       const DEFAULT_DAYS = 30;
@@ -307,6 +323,7 @@
 
       const days = getDaysFromQuery();
       const lowThreshold = getLowThreshold();
+      const showAllStarts = shouldShowAllStarts();
       const start = findPeriodStartUnix();
       const endLimit = start + days * 86400;
 
@@ -325,6 +342,7 @@
       }
 
       const keys = [...agg.keys()]
+        .filter((key) => showAllStarts || getEorzeaHour(key) === 16)
         .filter((key) => agg.get(key).sum >= lowThreshold)
         .sort((a, b) => a - b);
       const tbody = document.getElementById("tbody");
