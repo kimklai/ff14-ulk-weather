@@ -71,6 +71,14 @@
         border-bottom: 1px solid var(--border);
         font-size: 0.925rem;
       }
+      li.snow {
+        background: linear-gradient(90deg, rgb(94 179 212 / 0.18), rgb(166 225 255 / 0.08));
+        box-shadow: inset 0 0 0 1px rgb(140 220 255 / 0.12);
+      }
+      li.snow.et0000 {
+        background: linear-gradient(90deg, rgb(102 204 255 / 0.24), rgb(185 244 255 / 0.1));
+        box-shadow: inset 0 0 0 1px rgb(170 235 255 / 0.18);
+      }
       li:last-child {
         border-bottom: none;
       }
@@ -86,6 +94,15 @@
       }
       .wx {
         color: var(--text);
+      }
+      li.snow .time {
+        color: #9ae8ff;
+      }
+      li.snow .et {
+        color: #d1f5ff;
+      }
+      li.snow .wx {
+        color: #f2fbff;
       }
       @media (max-width: 520px) {
         li {
@@ -180,10 +197,15 @@
         let sod = Math.floor(totalEtSec) % 86400;
         if (sod < 0) sod += 86400;
         const h = Math.floor(sod / 3600);
-        const m = Math.floor((sod % 3600) / 60);
-        const s = sod % 60;
         const p = (n) => String(n).padStart(2, "0");
-        return `ET ${p(h)}:${p(m)}:${p(s)}`;
+        return `ET ${p(h)}00`;
+      }
+
+      function getEorzeaHour(unixSec) {
+        const totalEtSec = (unixSec * 86400) / EORZEA_DAY_SEC;
+        let sod = Math.floor(totalEtSec) % 86400;
+        if (sod < 0) sod += 86400;
+        return Math.floor(sod / 3600);
       }
 
       function formatLine(unixSec) {
@@ -222,6 +244,9 @@
         const unix = start + i * PERIOD_SEC;
         const { timeStr, etStr, label } = formatLine(unix);
         const li = document.createElement("li");
+        const weather = weatherAtUnix(unix);
+        if (getEorzeaHour(unix) === 0) li.classList.add("et0000");
+        if (weather === "Snow") li.classList.add("snow");
         li.innerHTML = `<span class="time">${timeStr}</span><span class="et">${etStr}</span><span class="wx">${label}</span>`;
         list.appendChild(li);
       }
