@@ -53,6 +53,38 @@
         margin: 0 auto;
         padding: 1.25rem;
       }
+      .controls {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+        gap: 0.9rem;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      .field {
+        display: grid;
+        gap: 0.35rem;
+      }
+      .field label {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .field select {
+        width: 100%;
+        padding: 0.6rem 0.7rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #111926;
+        color: var(--text);
+        font: inherit;
+      }
+      .hint {
+        margin: 0 0 1rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
       ul {
         margin: 0;
         padding: 0;
@@ -137,14 +169,24 @@
         <strong>GMT+8</strong>（<code>Asia/Taipei</code>），中欄為對應的艾歐澤亞時間（<strong>ET</strong>，1
         艾日 = 70 實分）。
         <br />
-        可用 URL 參數 <code>?count=50</code>（或 <code>?n=50</code>）指定筆數，未指定則預設 20 筆；
-        <code>?start=unix秒</code> 可指定列表起點。
+        列表起點與顯示筆數可直接用下拉選單切換，網址也會同步更新，方便分享目前檢視狀態。
         <br />
         <a href="score.html">3 小時區段評分 →</a>
         （預設僅顯示 100 分以上，可用 <code>?days=180&amp;low=0</code> 查看更長區間與全部區段）
       </p>
     </header>
     <main>
+      <section class="controls" aria-label="列表控制">
+        <div class="field">
+          <label for="startSelect">列表起點</label>
+          <select id="startSelect"></select>
+        </div>
+        <div class="field">
+          <label for="countSelect">顯示筆數</label>
+          <select id="countSelect"></select>
+        </div>
+      </section>
+      <p class="hint">起點選單會列出目前選取區段前後的鄰近天氣視窗。</p>
       <ul id="list" aria-label="天氣列表"></ul>
     </main>
     <script type="module">
@@ -219,6 +261,11 @@
         };
       }
 
+      function formatStartOption(unixSec) {
+        const d = new Date(unixSec * 1000);
+        return `${gmt8.format(d)} | ${formatEorzeaTime(unixSec)} | ${ZH_LABEL[weatherAtUnix(unixSec)] ?? weatherAtUnix(unixSec)}`;
+      }
+
       function getStartFromQuery() {
         const params = new URLSearchParams(window.location.search);
         const raw = params.get("start");
@@ -228,9 +275,13 @@
       }
 
       const list = document.getElementById("list");
+      const startSelect = document.getElementById("startSelect");
+      const countSelect = document.getElementById("countSelect");
       const start = getStartFromQuery();
       const DEFAULT_COUNT = 20;
       const MAX_COUNT = 5700; // 避免極大數值造成卡頓
+      const COUNT_OPTIONS = [10, 20, 30, 50, 100, 200, 500, 1000];
+
       function getCountFromQuery() {
         const params = new URLSearchParams(window.location.search);
         const raw = params.get("count") ?? params.get("n");
@@ -239,6 +290,66 @@
         return Math.min(parsed, MAX_COUNT);
       }
       const COUNT = getCountFromQuery();
+
+      function updateQuery(next) {
+        const params = new URLSearchParams(window.location.search);
+        if (next.start == null) params.delete("start");
+        else params.set("start", String(next.start));
+
+        if (next.count == null || next.count === DEFAULT_COUNT) {
+          params.delete("count");
+          params.delete("n");
+        } else {
+          params.set("count", String(next.count));
+          params.delete("n");
+        }
+
+        const query = params.toString();
+        window.location.search = query ? `?${query}` : window.location.pathname;
+      }
+
+      function fillStartOptions(selectedStart) {
+        const offsets = [];
+        for (let i = -12; i <= 24; i += 1) offsets.push(i);
+        for (const offset of offsets) {
+          const unix = selectedStart + offset * PERIOD_SEC;
+          const option = document.createElement("option");
+          option.value = String(unix);
+          option.textContent = `${offset === 0 ? "目前選取" : offset > 0 ? `+${offset} 段` : `${offset} 段`} | ${formatStartOption(unix)}`;
+          startSelect.appendChild(option);
+        }
+        startSelect.value = String(selectedStart);
+      }
+
+      function fillCountOptions(selectedCount) {
+        const options = COUNT_OPTIONS.includes(selectedCount)
+          ? COUNT_OPTIONS
+          : [...COUNT_OPTIONS, selectedCount].sort((a, b) => a - b);
+        for (const count of options) {
+          const option = document.createElement("option");
+          option.value = String(count);
+          option.textContent = `${count} 筆`;
+          countSelect.appendChild(option);
+        }
+        countSelect.value = String(selectedCount);
+      }
+
+      fillStartOptions(start);
+      fillCountOptions(COUNT);
+
+      startSelect.addEventListener("change", () => {
+        updateQuery({
+          start: Number.parseInt(startSelect.value, 10),
+          count: COUNT,
+        });
+      });
+
+      countSelect.addEventListener("change", () => {
+        updateQuery({
+          start,
+          count: Number.parseInt(countSelect.value, 10),
+        });
+      });
 
       for (let i = 0; i < COUNT; i++) {
         const unix = start + i * PERIOD_SEC;

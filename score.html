@@ -54,6 +54,38 @@
         margin: 0 auto;
         padding: 1.25rem;
       }
+      .controls {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+        gap: 0.9rem;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      .field {
+        display: grid;
+        gap: 0.35rem;
+      }
+      .field label {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .field select {
+        width: 100%;
+        padding: 0.6rem 0.7rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #111926;
+        color: var(--text);
+        font: inherit;
+      }
+      .hint {
+        margin: 0 0 1rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
       table {
         width: 100%;
         border-collapse: collapse;
@@ -163,14 +195,27 @@
         <strong>ET 0000</strong> 或 <strong>ET 1600</strong> 者 <strong>100</strong> 分；<strong>ET 0800</strong>
         者 <strong>10</strong> 分；其餘時間之雪 <strong>0</strong> 分。
         <br />
-        參數：<code>?days=30</code> 向前推算涵蓋的天數（預設 30，上限 180）；
-        <code>?low=100</code> 設定最低顯示分數門檻（預設 100，設 <code>0</code> 可顯示全部）；
-        <code>?all</code> 顯示所有 ET 起點。
+        涵蓋天數、最低分數與起點篩選都可直接用下拉選單切換，網址也會同步更新。
         <br />
         <a href="index.html">← 天氣列表</a>
       </p>
     </header>
     <main>
+      <section class="controls" aria-label="評分控制">
+        <div class="field">
+          <label for="daysSelect">涵蓋天數</label>
+          <select id="daysSelect"></select>
+        </div>
+        <div class="field">
+          <label for="lowSelect">最低顯示分數</label>
+          <select id="lowSelect"></select>
+        </div>
+        <div class="field">
+          <label for="startModeSelect">起點篩選</label>
+          <select id="startModeSelect"></select>
+        </div>
+      </section>
+      <p class="hint">變更任一選項後會直接重整目前頁面並保留對應查詢參數。</p>
       <table aria-label="區段分數">
         <thead>
           <tr>
@@ -304,6 +349,8 @@
 
       const DEFAULT_DAYS = 30;
       const MAX_DAYS = 180;
+      const DAYS_OPTIONS = [7, 14, 30, 60, 90, 120, 180];
+      const LOW_OPTIONS = [0, 10, 100, 200, 300, 400, 500];
 
       function getDaysFromQuery() {
         const params = new URLSearchParams(window.location.search);
@@ -324,8 +371,79 @@
       const days = getDaysFromQuery();
       const lowThreshold = getLowThreshold();
       const showAllStarts = shouldShowAllStarts();
+      const daysSelect = document.getElementById("daysSelect");
+      const lowSelect = document.getElementById("lowSelect");
+      const startModeSelect = document.getElementById("startModeSelect");
       const start = findPeriodStartUnix();
       const endLimit = start + days * 86400;
+
+      function fillSelect(select, values, formatter) {
+        for (const value of values) {
+          const option = document.createElement("option");
+          option.value = String(value);
+          option.textContent = formatter(value);
+          select.appendChild(option);
+        }
+      }
+
+      function updateQuery(next) {
+        const params = new URLSearchParams(window.location.search);
+        if (next.days === DEFAULT_DAYS) params.delete("days");
+        else params.set("days", String(next.days));
+
+        if (next.low === 100) params.delete("low");
+        else params.set("low", String(next.low));
+
+        if (next.showAllStarts) params.set("all", "1");
+        else params.delete("all");
+
+        const query = params.toString();
+        window.location.search = query ? `?${query}` : window.location.pathname;
+      }
+
+      fillSelect(
+        daysSelect,
+        DAYS_OPTIONS.includes(days) ? DAYS_OPTIONS : [...DAYS_OPTIONS, days].sort((a, b) => a - b),
+        (value) => `${value} 天`
+      );
+      fillSelect(
+        lowSelect,
+        LOW_OPTIONS.includes(lowThreshold) ? LOW_OPTIONS : [...LOW_OPTIONS, lowThreshold].sort((a, b) => a - b),
+        (value) => (value === 0 ? "全部分數" : `${value} 分以上`)
+      );
+      fillSelect(
+        startModeSelect,
+        ["et1600", "all"],
+        (value) => (value === "et1600" ? "只看 ET 1600 起點" : "顯示全部 ET 起點")
+      );
+
+      daysSelect.value = String(days);
+      lowSelect.value = String(lowThreshold);
+      startModeSelect.value = showAllStarts ? "all" : "et1600";
+
+      daysSelect.addEventListener("change", () => {
+        updateQuery({
+          days: Number.parseInt(daysSelect.value, 10),
+          low: lowThreshold,
+          showAllStarts,
+        });
+      });
+
+      lowSelect.addEventListener("change", () => {
+        updateQuery({
+          days,
+          low: Number.parseInt(lowSelect.value, 10),
+          showAllStarts,
+        });
+      });
+
+      startModeSelect.addEventListener("change", () => {
+        updateQuery({
+          days,
+          low: lowThreshold,
+          showAllStarts: startModeSelect.value === "all",
+        });
+      });
 
       /** @type {Map<number, { sum: number, counts: { c100: number, c10: number } }>} */
       const agg = new Map();
