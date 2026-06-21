@@ -195,13 +195,17 @@
         <strong>ET 0000</strong> 或 <strong>ET 1600</strong> 者 <strong>100</strong> 分；<strong>ET 0800</strong>
         者 <strong>10</strong> 分；其餘時間之雪 <strong>0</strong> 分。
         <br />
-        涵蓋天數、最低分數與起點篩選都可直接用下拉選單切換，網址也會同步更新。
+        起始時間、涵蓋天數、最低分數與起點篩選都可直接用下拉選單切換，網址也會同步更新。
         <br />
         <a href="index.html">← 天氣列表</a>
       </p>
     </header>
     <main>
       <section class="controls" aria-label="評分控制">
+        <div class="field">
+          <label for="startSelect">起始時間</label>
+          <select id="startSelect"></select>
+        </div>
         <div class="field">
           <label for="daysSelect">涵蓋天數</label>
           <select id="daysSelect"></select>
@@ -368,13 +372,28 @@
         return Math.max(0, parsed);
       }
 
+      function getStartFromQuery(defaultStart) {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get("start");
+        const parsed = Number.parseInt(raw ?? "", 10);
+        if (!Number.isFinite(parsed) || parsed < 0) return defaultStart;
+        return parsed;
+      }
+
+      function formatStartOption(unixSec) {
+        const et = String(getEorzeaHour(unixSec)).padStart(2, "0");
+        return `${formatTaipeiMinute(unixSec)} | ET ${et}:00`;
+      }
+
       const days = getDaysFromQuery();
       const lowThreshold = getLowThreshold();
       const showAllStarts = shouldShowAllStarts();
+      const currentPeriodStart = findPeriodStartUnix();
+      const start = getStartFromQuery(currentPeriodStart);
+      const startSelect = document.getElementById("startSelect");
       const daysSelect = document.getElementById("daysSelect");
       const lowSelect = document.getElementById("lowSelect");
       const startModeSelect = document.getElementById("startModeSelect");
-      const start = findPeriodStartUnix();
       const endLimit = start + days * 86400;
 
       function fillSelect(select, values, formatter) {
@@ -388,6 +407,9 @@
 
       function updateQuery(next) {
         const params = new URLSearchParams(window.location.search);
+        if (next.start === currentPeriodStart) params.delete("start");
+        else params.set("start", String(next.start));
+
         if (next.days === DEFAULT_DAYS) params.delete("days");
         else params.set("days", String(next.days));
 
@@ -398,9 +420,23 @@
         else params.delete("all");
 
         const query = params.toString();
-        window.location.search = query ? `?${query}` : window.location.pathname;
+        window.location.href = `${window.location.pathname}${query ? `?${query}` : ""}`;
       }
 
+      function fillStartOptions(selectedStart) {
+        const offsets = [];
+        for (let i = -18; i <= 36; i += 1) offsets.push(i);
+        for (const offset of offsets) {
+          const unix = selectedStart + offset * PERIOD_SEC;
+          const option = document.createElement("option");
+          option.value = String(unix);
+          option.textContent = `${offset === 0 ? "目前選取" : offset > 0 ? `+${offset} 段` : `${offset} 段`} | ${formatStartOption(unix)}`;
+          startSelect.appendChild(option);
+        }
+        startSelect.value = String(selectedStart);
+      }
+
+      fillStartOptions(start);
       fillSelect(
         daysSelect,
         DAYS_OPTIONS.includes(days) ? DAYS_OPTIONS : [...DAYS_OPTIONS, days].sort((a, b) => a - b),
@@ -421,8 +457,18 @@
       lowSelect.value = String(lowThreshold);
       startModeSelect.value = showAllStarts ? "all" : "et1600";
 
+      startSelect.addEventListener("change", () => {
+        updateQuery({
+          start: Number.parseInt(startSelect.value, 10),
+          days,
+          low: lowThreshold,
+          showAllStarts,
+        });
+      });
+
       daysSelect.addEventListener("change", () => {
         updateQuery({
+          start,
           days: Number.parseInt(daysSelect.value, 10),
           low: lowThreshold,
           showAllStarts,
@@ -431,6 +477,7 @@
 
       lowSelect.addEventListener("change", () => {
         updateQuery({
+          start,
           days,
           low: Number.parseInt(lowSelect.value, 10),
           showAllStarts,
@@ -439,6 +486,7 @@
 
       startModeSelect.addEventListener("change", () => {
         updateQuery({
+          start,
           days,
           low: lowThreshold,
           showAllStarts: startModeSelect.value === "all",

@@ -59,11 +59,13 @@
 - 可用 `all` 顯示所有 ET 起點區段
 - `200` 分以上分數字色會明顯提亮
 - 背景固定純深色，不用漸層
-- 頁面上有 `涵蓋天數`、`最低顯示分數`、`起點篩選` 三個下拉選單
+- 頁面上有 `起始時間`、`涵蓋天數`、`最低顯示分數`、`起點篩選` 四個下拉選單
 - 下拉選單變更後會同步更新網址 query string 並重新載入頁面
 - `最低顯示分數` 下拉選單目前提供 `0 / 10 / 100 / 200 / 300 / 400 / 500`
+- `起始時間` 會顯示目前選取區段前後的鄰近天氣視窗，不是自由輸入
 
 支援參數：
+- `?start=unix秒`
 - `?days=30`
 - `?low=100`
 - `?all`
@@ -73,6 +75,7 @@
 - `days` 上限 180
 - `low` 預設 100
 - `low=0` 可顯示全部
+- 未指定 `start` 時從「目前所在的天氣視窗起點」開始
 - 未指定 `all` 時只顯示 `ET 1600` 起點區段
 
 時間格式：
@@ -120,6 +123,7 @@
 - 改列表起點邏輯：`index.html` 的 `getStartFromQuery()`
 - 改 Snow 高亮樣式：`index.html` 的 `li.snow`
 - 改評分區段長度：`score.html` 的 `SEGMENT_PERIODS`
+- 改評分起點邏輯：`score.html` 的 `getStartFromQuery()` / `fillStartOptions()`
 - 改評分門檻：`score.html` 的 `getLowThreshold()`
 - 改詳情連結筆數：`score.html` 的 `weatherListHref()`
 - 改時間區段文字格式：`score.html` 的 `segmentLabel()`
