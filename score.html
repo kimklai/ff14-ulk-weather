@@ -240,6 +240,8 @@
       const EORZEA_DAY_SEC = 4200;
       const SEGMENT_PERIODS = 9;
       const SEGMENT_SEC = SEGMENT_PERIODS * PERIOD_SEC;
+      const TAIPEI_OFFSET_SEC = 8 * 60 * 60;
+      const WEEK_SEC = 7 * 86400;
       /** @param {number} unixSec */
       function weatherAtUnix(unixSec) {
         return EorzeaWeather.getWeather(ZONE, new Date(unixSec * 1000), {
@@ -251,6 +253,13 @@
         let u = Math.floor(Date.now() / 1000);
         const w = weatherAtUnix(u);
         while (u > 0 && weatherAtUnix(u - 1) === w) u -= 1;
+        return u;
+      }
+
+      function findNextPeriodStartUnix(unixSec) {
+        let u = findPeriodStartUnix();
+        while (u < unixSec) u += PERIOD_SEC;
+        while (u - PERIOD_SEC >= unixSec) u -= PERIOD_SEC;
         return u;
       }
 
@@ -372,28 +381,32 @@
         return Math.max(0, parsed);
       }
 
+      function startOfTaipeiDayUnix(unixSec) {
+        return Math.floor((unixSec + TAIPEI_OFFSET_SEC) / 86400) * 86400 - TAIPEI_OFFSET_SEC;
+      }
+
       function getStartFromQuery(defaultStart) {
         const params = new URLSearchParams(window.location.search);
         const raw = params.get("start");
         const parsed = Number.parseInt(raw ?? "", 10);
         if (!Number.isFinite(parsed) || parsed < 0) return defaultStart;
-        return parsed;
+        return startOfTaipeiDayUnix(parsed);
       }
 
       function formatStartOption(unixSec) {
-        const et = String(getEorzeaHour(unixSec)).padStart(2, "0");
-        return `${formatTaipeiMinute(unixSec)} | ET ${et}:00`;
+        return `${formatTaipeiMinute(unixSec)} GMT+8`;
       }
 
       const days = getDaysFromQuery();
       const lowThreshold = getLowThreshold();
       const showAllStarts = shouldShowAllStarts();
-      const currentPeriodStart = findPeriodStartUnix();
-      const start = getStartFromQuery(currentPeriodStart);
+      const currentRangeStart = startOfTaipeiDayUnix(Math.floor(Date.now() / 1000));
+      const start = getStartFromQuery(currentRangeStart);
       const startSelect = document.getElementById("startSelect");
       const daysSelect = document.getElementById("daysSelect");
       const lowSelect = document.getElementById("lowSelect");
       const startModeSelect = document.getElementById("startModeSelect");
+      const firstSegmentStart = findNextPeriodStartUnix(start);
       const endLimit = start + days * 86400;
 
       function fillSelect(select, values, formatter) {
@@ -407,7 +420,7 @@
 
       function updateQuery(next) {
         const params = new URLSearchParams(window.location.search);
-        if (next.start === currentPeriodStart) params.delete("start");
+        if (next.start === currentRangeStart) params.delete("start");
         else params.set("start", String(next.start));
 
         if (next.days === DEFAULT_DAYS) params.delete("days");
@@ -425,12 +438,12 @@
 
       function fillStartOptions(selectedStart) {
         const offsets = [];
-        for (let i = -18; i <= 36; i += 1) offsets.push(i);
+        for (let i = -12; i <= 24; i += 1) offsets.push(i);
         for (const offset of offsets) {
-          const unix = selectedStart + offset * PERIOD_SEC;
+          const unix = selectedStart + offset * WEEK_SEC;
           const option = document.createElement("option");
           option.value = String(unix);
-          option.textContent = `${offset === 0 ? "目前選取" : offset > 0 ? `+${offset} 段` : `${offset} 段`} | ${formatStartOption(unix)}`;
+          option.textContent = `${offset === 0 ? "目前選取" : offset > 0 ? `+${offset} 週` : `${offset} 週`} | ${formatStartOption(unix)}`;
           startSelect.appendChild(option);
         }
         startSelect.value = String(selectedStart);
@@ -496,7 +509,7 @@
       /** @type {Map<number, { sum: number, counts: { c100: number, c10: number } }>} */
       const agg = new Map();
 
-      for (let segStart = start; segStart < endLimit; segStart += PERIOD_SEC) {
+      for (let segStart = firstSegmentStart; segStart < endLimit; segStart += PERIOD_SEC) {
         const row = { sum: 0, counts: { c100: 0, c10: 0 } };
         const segEnd = segStart + SEGMENT_SEC;
         for (let t = segStart; t < segEnd; t += PERIOD_SEC) {
